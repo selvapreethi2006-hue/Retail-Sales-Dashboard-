@@ -1,0 +1,604 @@
+import { useState, useEffect, useRef } from "react";
+import {
+  LineChart, Line, BarChart, Bar, AreaChart, Area,
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  ResponsiveContainer, RadarChart, Radar, PolarGrid,
+  PolarAngleAxis, PolarRadiusAxis, ScatterChart, Scatter,
+  Cell, PieChart, Pie
+} from "recharts";
+
+// ── DATASET ──────────────────────────────────────────────────────────────────
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+const salesData = [
+  { month:"Jan'24", Electronics:142000, Apparel:89000, Grocery:203000, HomeDecor:61000, Sports:47000, total:542000, forecast:null },
+  { month:"Feb'24", Electronics:128000, Apparel:94000, Grocery:198000, HomeDecor:58000, Sports:43000, total:521000, forecast:null },
+  { month:"Mar'24", Electronics:151000, Apparel:112000, Grocery:215000, HomeDecor:72000, Sports:58000, total:608000, forecast:null },
+  { month:"Apr'24", Electronics:163000, Apparel:125000, Grocery:221000, HomeDecor:81000, Sports:74000, total:664000, forecast:null },
+  { month:"May'24", Electronics:155000, Apparel:138000, Grocery:229000, HomeDecor:79000, Sports:91000, total:692000, forecast:null },
+  { month:"Jun'24", Electronics:148000, Apparel:131000, Grocery:242000, HomeDecor:83000, Sports:97000, total:701000, forecast:null },
+  { month:"Jul'24", Electronics:162000, Apparel:119000, Grocery:251000, HomeDecor:77000, Sports:88000, total:697000, forecast:null },
+  { month:"Aug'24", Electronics:178000, Apparel:122000, Grocery:246000, HomeDecor:85000, Sports:82000, total:713000, forecast:null },
+  { month:"Sep'24", Electronics:171000, Apparel:134000, Grocery:238000, HomeDecor:91000, Sports:76000, total:710000, forecast:null },
+  { month:"Oct'24", Electronics:196000, Apparel:148000, Grocery:255000, HomeDecor:103000, Sports:71000, total:773000, forecast:null },
+  { month:"Nov'24", Electronics:241000, Apparel:167000, Grocery:278000, HomeDecor:119000, Sports:68000, total:873000, forecast:null },
+  { month:"Dec'24", Electronics:287000, Apparel:189000, Grocery:312000, HomeDecor:134000, Sports:59000, total:981000, forecast:null },
+  { month:"Jan'25", Electronics:null, Apparel:null, Grocery:null, HomeDecor:null, Sports:null, total:null, forecast:598000 },
+  { month:"Feb'25", Electronics:null, Apparel:null, Grocery:null, HomeDecor:null, Sports:null, total:null, forecast:572000 },
+  { month:"Mar'25", Electronics:null, Apparel:null, Grocery:null, HomeDecor:null, Sports:null, total:null, forecast:665000 },
+];
+
+const regionData = [
+  { region:"North", q1:412000, q2:498000, q3:531000, q4:689000, yoy:18.2 },
+  { region:"South", q1:387000, q2:461000, q3:497000, q4:621000, yoy:14.7 },
+  { region:"East",  q1:341000, q2:402000, q3:438000, q4:574000, yoy:22.1 },
+  { region:"West",  q1:471000, q2:551000, q3:589000, q4:741000, yoy:16.8 },
+  { region:"Central",q1:298000,q2:367000, q3:401000, q4:528000, yoy:19.3 },
+];
+
+const categoryBreakdown = [
+  { name:"Electronics", value:2122000, color:"#6EE7B7", growth:"+19.4%" },
+  { name:"Grocery",     value:2688000, color:"#FCD34D", growth:"+8.2%"  },
+  { name:"Apparel",     value:1428000, color:"#F9A8D4", growth:"+11.7%" },
+  { name:"Home Décor",  value:963000,  color:"#93C5FD", growth:"+24.6%" },
+  { name:"Sports",      value:754000,  color:"#C4B5FD", growth:"-3.1%"  },
+];
+
+const radarData = [
+  { metric:"Revenue",    Electronics:92, Apparel:58, Grocery:100, HomeDecor:38, Sports:29 },
+  { metric:"Growth",     Electronics:78, Apparel:65, Grocery:40,  HomeDecor:95, Sports:15 },
+  { metric:"Margin",     Electronics:71, Apparel:83, Grocery:28,  HomeDecor:76, Sports:62 },
+  { metric:"Returns",    Electronics:55, Apparel:42, Grocery:88,  HomeDecor:71, Sports:79 },
+  { metric:"Loyalty",    Electronics:68, Apparel:74, Grocery:91,  HomeDecor:62, Sports:57 },
+];
+
+const customerData = [
+  { segment:"Premium",  count:12400, avgOrder:284, churn:4.2, clv:3820 },
+  { segment:"Regular",  count:48700, avgOrder:127, churn:11.8, clv:1240 },
+  { segment:"Occasional",count:89300,avgOrder:68,  churn:29.4, clv:380  },
+  { segment:"New",      count:31200, avgOrder:94,  churn:41.7, clv:210  },
+];
+
+const scatterPoints = Array.from({length:40},(_,i)=>({
+  spend: Math.round(40 + Math.random()*280),
+  satisfaction: Math.round(50 + Math.random()*50),
+  size: Math.round(3 + Math.random()*12),
+  category: ["Electronics","Apparel","Grocery","HomeDecor","Sports"][Math.floor(Math.random()*5)]
+}));
+
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+const fmt = (n) => n >= 1e6 ? `$${(n/1e6).toFixed(2)}M` : `$${(n/1e3).toFixed(0)}K`;
+const pct = (a,b) => (((b-a)/a)*100).toFixed(1);
+
+const CAT_COLORS = {
+  Electronics:"#6EE7B7", Apparel:"#F9A8D4",
+  Grocery:"#FCD34D", HomeDecor:"#93C5FD", Sports:"#C4B5FD"
+};
+
+// ── COMPONENTS ────────────────────────────────────────────────────────────────
+const KPICard = ({ label, value, sub, accent, delay }) => (
+  <div style={{
+    background:"rgba(255,255,255,0.03)", border:`1px solid ${accent}33`,
+    borderRadius:16, padding:"20px 24px", flex:1, minWidth:160,
+    animation:`fadeUp 0.5s ${delay}s both`, position:"relative", overflow:"hidden"
+  }}>
+    <div style={{
+      position:"absolute", top:-20, right:-20, width:80, height:80,
+      background:`${accent}15`, borderRadius:"50%"
+    }}/>
+    <div style={{ fontSize:11, letterSpacing:2, color:"#888", textTransform:"uppercase", marginBottom:8 }}>{label}</div>
+    <div style={{ fontSize:28, fontWeight:800, color:"#fff", fontFamily:"'DM Serif Display',serif", lineHeight:1 }}>{value}</div>
+    <div style={{ fontSize:12, color:accent, marginTop:6, fontWeight:600 }}>{sub}</div>
+  </div>
+);
+
+const SectionTitle = ({ n, title, subtitle }) => (
+  <div style={{ marginBottom:28 }}>
+    <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:6 }}>
+      <span style={{
+        background:"linear-gradient(135deg,#6EE7B7,#3B82F6)", borderRadius:8,
+        width:32, height:32, display:"flex", alignItems:"center", justifyContent:"center",
+        fontSize:13, fontWeight:800, color:"#000", flexShrink:0
+      }}>{n}</span>
+      <h2 style={{ margin:0, fontSize:22, fontFamily:"'DM Serif Display',serif", color:"#fff", fontWeight:400 }}>{title}</h2>
+    </div>
+    <p style={{ margin:"0 0 0 44px", color:"#888", fontSize:13 }}>{subtitle}</p>
+  </div>
+);
+
+const CustomTooltip = ({ active, payload, label }) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <div style={{
+      background:"#1a1a2e", border:"1px solid #333", borderRadius:12,
+      padding:"12px 16px", fontSize:12, boxShadow:"0 8px 32px rgba(0,0,0,0.5)"
+    }}>
+      <div style={{ color:"#aaa", marginBottom:8, fontWeight:700 }}>{label}</div>
+      {payload.map((p,i) => (
+        <div key={i} style={{ color:p.color, marginBottom:3 }}>
+          {p.name}: <strong>{typeof p.value === 'number' ? fmt(p.value) : p.value}</strong>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+// ── MAIN APP ──────────────────────────────────────────────────────────────────
+export default function RetailDashboard() {
+  const [activeSection, setActiveSection] = useState(0);
+  const [activeCat, setActiveCat] = useState("Electronics");
+  const [radarCats, setRadarCats] = useState(["Electronics","Grocery","Apparel"]);
+
+  const sections = ["Overview","Sales Trends","Category Analysis","Regional Performance","Customer Segments","Forecast & Insights"];
+
+  const totalRevenue = salesData.filter(d=>d.total).reduce((s,d)=>s+d.total,0);
+  const avgMonthly = totalRevenue / 12;
+  const bestMonth = salesData.filter(d=>d.total).sort((a,b)=>b.total-a.total)[0];
+
+  const toggleCat = (cat) => {
+    setRadarCats(prev =>
+      prev.includes(cat) ? prev.filter(c=>c!==cat) : [...prev, cat]
+    );
+  };
+
+  return (
+    <div style={{
+      minHeight:"100vh", background:"#0a0a12",
+      fontFamily:"'DM Sans', sans-serif", color:"#e0e0e0"
+    }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@400;500;600;700;800&display=swap');
+        @keyframes fadeUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes glow { 0%,100%{opacity:.7} 50%{opacity:1} }
+        ::-webkit-scrollbar{width:6px} ::-webkit-scrollbar-track{background:#111} ::-webkit-scrollbar-thumb{background:#333;border-radius:3px}
+        .nav-btn:hover{background:rgba(110,231,183,0.1)!important}
+        .cat-pill:hover{filter:brightness(1.2);cursor:pointer}
+        .insight-card:hover{border-color:#6EE7B7!important;transform:translateY(-2px)}
+      `}</style>
+
+      {/* HEADER */}
+      <div style={{
+        background:"linear-gradient(180deg,#0f1129 0%,#0a0a12 100%)",
+        borderBottom:"1px solid #1e1e3a", padding:"32px 48px 24px"
+      }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", flexWrap:"wrap", gap:16 }}>
+          <div>
+            <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:8 }}>
+              <div style={{ width:10, height:10, background:"#6EE7B7", borderRadius:"50%", animation:"glow 2s infinite" }}/>
+              <span style={{ fontSize:11, letterSpacing:3, color:"#6EE7B7", textTransform:"uppercase" }}>Live Dashboard · FY 2024</span>
+            </div>
+            <h1 style={{ margin:0, fontSize:36, fontFamily:"'DM Serif Display',serif", color:"#fff", fontWeight:400, lineHeight:1.1 }}>
+              Retail Sales<br/><span style={{ color:"#6EE7B7" }}>Intelligence Report</span>
+            </h1>
+            <p style={{ margin:"10px 0 0", color:"#666", fontSize:13 }}>End-to-end data analysis · 5 categories · 5 regions · 12 months</p>
+          </div>
+          <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+            {sections.map((s,i) => (
+              <button key={i} className="nav-btn" onClick={()=>setActiveSection(i)} style={{
+                background: activeSection===i ? "rgba(110,231,183,0.15)" : "transparent",
+                border: activeSection===i ? "1px solid #6EE7B7" : "1px solid #222",
+                color: activeSection===i ? "#6EE7B7" : "#888",
+                borderRadius:8, padding:"6px 14px", fontSize:12, cursor:"pointer",
+                fontFamily:"'DM Sans',sans-serif", fontWeight:600, transition:"all .2s"
+              }}>{s}</button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div style={{ padding:"32px 48px", maxWidth:1400, margin:"0 auto" }}>
+
+        {/* ── SECTION 0: OVERVIEW ── */}
+        {activeSection === 0 && (
+          <div style={{ animation:"fadeUp 0.4s both" }}>
+            <SectionTitle n="0" title="Executive Overview" subtitle="FY2024 key performance indicators across all categories and regions" />
+
+            {/* KPI Row */}
+            <div style={{ display:"flex", gap:16, flexWrap:"wrap", marginBottom:32 }}>
+              <KPICard label="Total Revenue" value={fmt(totalRevenue)} sub="↑ 16.3% vs FY2023" accent="#6EE7B7" delay={0} />
+              <KPICard label="Monthly Average" value={fmt(avgMonthly)} sub="Across 12 months" accent="#93C5FD" delay={0.05} />
+              <KPICard label="Peak Month" value={bestMonth.month} sub={`${fmt(bestMonth.total)} in Dec`} accent="#FCD34D" delay={0.1} />
+              <KPICard label="Best Category" value="Grocery" sub="$2.69M · Highest volume" accent="#F9A8D4" delay={0.15} />
+              <KPICard label="Fastest Growth" value="Home Décor" sub="↑ 24.6% YoY" accent="#C4B5FD" delay={0.2} />
+            </div>
+
+            {/* Revenue overview chart */}
+            <div style={{ background:"rgba(255,255,255,0.02)", border:"1px solid #1e1e3a", borderRadius:20, padding:28, marginBottom:24 }}>
+              <h3 style={{ margin:"0 0 20px", color:"#fff", fontFamily:"'DM Serif Display',serif", fontWeight:400, fontSize:18 }}>Monthly Revenue by Category</h3>
+              <ResponsiveContainer width="100%" height={300}>
+                <AreaChart data={salesData.filter(d=>d.total)} margin={{top:5,right:20,left:10,bottom:5}}>
+                  <defs>
+                    {Object.entries(CAT_COLORS).map(([k,v])=>(
+                      <linearGradient key={k} id={`grad-${k}`} x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor={v} stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor={v} stopOpacity={0}/>
+                      </linearGradient>
+                    ))}
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1e1e3a" />
+                  <XAxis dataKey="month" tick={{fill:"#666",fontSize:11}} axisLine={false} tickLine={false}/>
+                  <YAxis tickFormatter={v=>`$${v/1000}K`} tick={{fill:"#666",fontSize:11}} axisLine={false} tickLine={false}/>
+                  <Tooltip content={<CustomTooltip/>}/>
+                  <Legend wrapperStyle={{paddingTop:16,fontSize:12}}/>
+                  {Object.entries(CAT_COLORS).map(([k,v])=>(
+                    <Area key={k} type="monotone" dataKey={k} stroke={v} fill={`url(#grad-${k})`} strokeWidth={2}/>
+                  ))}
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Category pie + table */}
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:20 }}>
+              <div style={{ background:"rgba(255,255,255,0.02)", border:"1px solid #1e1e3a", borderRadius:20, padding:28 }}>
+                <h3 style={{ margin:"0 0 16px", color:"#fff", fontFamily:"'DM Serif Display',serif", fontWeight:400, fontSize:18 }}>Revenue Share</h3>
+                <ResponsiveContainer width="100%" height={220}>
+                  <PieChart>
+                    <Pie data={categoryBreakdown} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={90} innerRadius={50} paddingAngle={3}>
+                      {categoryBreakdown.map((e,i)=><Cell key={i} fill={e.color}/>)}
+                    </Pie>
+                    <Tooltip formatter={(v)=>[fmt(v),"Revenue"]}/>
+                    <Legend wrapperStyle={{fontSize:12}}/>
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <div style={{ background:"rgba(255,255,255,0.02)", border:"1px solid #1e1e3a", borderRadius:20, padding:28 }}>
+                <h3 style={{ margin:"0 0 16px", color:"#fff", fontFamily:"'DM Serif Display',serif", fontWeight:400, fontSize:18 }}>Category Snapshot</h3>
+                <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
+                  <thead>
+                    <tr style={{ color:"#555", borderBottom:"1px solid #1e1e3a" }}>
+                      {["Category","Revenue","YoY"].map(h=><th key={h} style={{textAlign:"left",padding:"6px 0",fontWeight:600,fontSize:11,letterSpacing:1,textTransform:"uppercase"}}>{h}</th>)}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {categoryBreakdown.map((c,i)=>(
+                      <tr key={i} style={{ borderBottom:"1px solid #111" }}>
+                        <td style={{padding:"10px 0",display:"flex",alignItems:"center",gap:8}}>
+                          <span style={{width:8,height:8,borderRadius:"50%",background:c.color,display:"inline-block"}}/>
+                          {c.name}
+                        </td>
+                        <td style={{color:"#fff",fontWeight:700}}>{fmt(c.value)}</td>
+                        <td style={{color: c.growth.startsWith("+") ? "#6EE7B7" : "#F87171", fontWeight:700}}>{c.growth}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── SECTION 1: SALES TRENDS ── */}
+        {activeSection === 1 && (
+          <div style={{ animation:"fadeUp 0.4s both" }}>
+            <SectionTitle n="1" title="Sales Trend Analysis" subtitle="Monthly revenue trajectory, seasonality patterns, and growth momentum" />
+
+            <div style={{ background:"rgba(255,255,255,0.02)", border:"1px solid #1e1e3a", borderRadius:20, padding:28, marginBottom:24 }}>
+              <h3 style={{ margin:"0 0 20px", color:"#fff", fontFamily:"'DM Serif Display',serif", fontWeight:400, fontSize:18 }}>Total Revenue with Forecast</h3>
+              <ResponsiveContainer width="100%" height={340}>
+                <LineChart data={salesData} margin={{top:5,right:20,left:10,bottom:5}}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1e1e3a"/>
+                  <XAxis dataKey="month" tick={{fill:"#666",fontSize:11}} axisLine={false} tickLine={false}/>
+                  <YAxis tickFormatter={v=>`$${v/1000}K`} tick={{fill:"#666",fontSize:11}} axisLine={false} tickLine={false}/>
+                  <Tooltip content={<CustomTooltip/>}/>
+                  <Legend wrapperStyle={{fontSize:12,paddingTop:16}}/>
+                  <Line type="monotone" dataKey="total" stroke="#6EE7B7" strokeWidth={3} dot={{r:4,fill:"#6EE7B7"}} name="Actual Revenue" connectNulls={false}/>
+                  <Line type="monotone" dataKey="forecast" stroke="#6EE7B7" strokeWidth={2} strokeDasharray="6 4" dot={{r:4,fill:"transparent",stroke:"#6EE7B7"}} name="Forecast" connectNulls={false}/>
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:20 }}>
+              <div style={{ background:"rgba(255,255,255,0.02)", border:"1px solid #1e1e3a", borderRadius:20, padding:28 }}>
+                <h3 style={{ margin:"0 0 20px", color:"#fff", fontFamily:"'DM Serif Display',serif", fontWeight:400, fontSize:18 }}>Quarter-over-Quarter</h3>
+                <ResponsiveContainer width="100%" height={240}>
+                  <BarChart data={[
+                    {q:"Q1 2024", revenue:1671000},
+                    {q:"Q2 2024", revenue:2057000},
+                    {q:"Q3 2024", revenue:2120000},
+                    {q:"Q4 2024", revenue:2627000},
+                  ]} margin={{top:5,right:5,left:5,bottom:5}}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#1e1e3a"/>
+                    <XAxis dataKey="q" tick={{fill:"#666",fontSize:11}} axisLine={false} tickLine={false}/>
+                    <YAxis tickFormatter={v=>`$${v/1e6}M`} tick={{fill:"#666",fontSize:11}} axisLine={false} tickLine={false}/>
+                    <Tooltip content={<CustomTooltip/>}/>
+                    <Bar dataKey="revenue" name="Revenue" radius={[8,8,0,0]}>
+                      {["#93C5FD","#6EE7B7","#FCD34D","#F9A8D4"].map((c,i)=><Cell key={i} fill={c}/>)}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+              <div style={{ background:"rgba(255,255,255,0.02)", border:"1px solid #1e1e3a", borderRadius:20, padding:28 }}>
+                <h3 style={{ margin:"0 0 20px", color:"#fff", fontFamily:"'DM Serif Display',serif", fontWeight:400, fontSize:18 }}>MoM Growth Rate (%)</h3>
+                <ResponsiveContainer width="100%" height={240}>
+                  <BarChart data={salesData.filter(d=>d.total).slice(1).map((d,i)=>({
+                    month:d.month,
+                    growth: +pct(salesData[i].total, d.total)
+                  }))} margin={{top:5,right:5,left:5,bottom:5}}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#1e1e3a"/>
+                    <XAxis dataKey="month" tick={{fill:"#666",fontSize:10}} axisLine={false} tickLine={false}/>
+                    <YAxis tick={{fill:"#666",fontSize:11}} axisLine={false} tickLine={false} unit="%"/>
+                    <Tooltip formatter={v=>[`${v}%`,"MoM Growth"]}/>
+                    <Bar dataKey="growth" radius={[6,6,0,0]}>
+                      {salesData.slice(1).map((_,i)=>{
+                        const g = +pct(salesData[i].total||0, salesData[i+1]?.total||0);
+                        return <Cell key={i} fill={g>=0?"#6EE7B7":"#F87171"}/>;
+                      })}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── SECTION 2: CATEGORY ANALYSIS ── */}
+        {activeSection === 2 && (
+          <div style={{ animation:"fadeUp 0.4s both" }}>
+            <SectionTitle n="2" title="Category Deep Dive" subtitle="Multi-dimensional performance analysis across all product categories" />
+
+            {/* Pills */}
+            <div style={{ display:"flex", gap:10, marginBottom:24, flexWrap:"wrap" }}>
+              {Object.entries(CAT_COLORS).map(([cat,col])=>(
+                <div key={cat} className="cat-pill" onClick={()=>setActiveCat(cat)} style={{
+                  padding:"6px 16px", borderRadius:100, fontSize:12, fontWeight:700,
+                  background: activeCat===cat ? col : "transparent",
+                  border: `1px solid ${col}`, color: activeCat===cat ? "#000" : col,
+                  transition:"all .2s", cursor:"pointer"
+                }}>{cat}</div>
+              ))}
+            </div>
+
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:20, marginBottom:20 }}>
+              <div style={{ background:"rgba(255,255,255,0.02)", border:"1px solid #1e1e3a", borderRadius:20, padding:28 }}>
+                <h3 style={{ margin:"0 0 16px", color:"#fff", fontFamily:"'DM Serif Display',serif", fontWeight:400, fontSize:18 }}>
+                  {activeCat} — Monthly Performance
+                </h3>
+                <ResponsiveContainer width="100%" height={240}>
+                  <AreaChart data={salesData.filter(d=>d[activeCat]!==null)} margin={{top:5,right:5,left:5,bottom:5}}>
+                    <defs>
+                      <linearGradient id="selGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor={CAT_COLORS[activeCat]} stopOpacity={0.4}/>
+                        <stop offset="95%" stopColor={CAT_COLORS[activeCat]} stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#1e1e3a"/>
+                    <XAxis dataKey="month" tick={{fill:"#666",fontSize:11}} axisLine={false} tickLine={false}/>
+                    <YAxis tickFormatter={v=>`$${v/1000}K`} tick={{fill:"#666",fontSize:11}} axisLine={false} tickLine={false}/>
+                    <Tooltip content={<CustomTooltip/>}/>
+                    <Area type="monotone" dataKey={activeCat} stroke={CAT_COLORS[activeCat]} fill="url(#selGrad)" strokeWidth={2.5} name={activeCat}/>
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+              <div style={{ background:"rgba(255,255,255,0.02)", border:"1px solid #1e1e3a", borderRadius:20, padding:28 }}>
+                <h3 style={{ margin:"0 0 16px", color:"#fff", fontFamily:"'DM Serif Display',serif", fontWeight:400, fontSize:18 }}>Multi-Category Radar</h3>
+                <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:12 }}>
+                  {Object.entries(CAT_COLORS).map(([cat,col])=>(
+                    <span key={cat} onClick={()=>toggleCat(cat)} style={{
+                      fontSize:11, padding:"3px 10px", borderRadius:100, cursor:"pointer",
+                      background: radarCats.includes(cat) ? col+"33" : "transparent",
+                      border:`1px solid ${col}`, color:col, fontWeight:700, transition:"all .2s"
+                    }}>{cat}</span>
+                  ))}
+                </div>
+                <ResponsiveContainer width="100%" height={210}>
+                  <RadarChart data={radarData}>
+                    <PolarGrid stroke="#1e1e3a"/>
+                    <PolarAngleAxis dataKey="metric" tick={{fill:"#888",fontSize:11}}/>
+                    <PolarRadiusAxis tick={false} axisLine={false}/>
+                    {radarCats.map(cat=>(
+                      <Radar key={cat} name={cat} dataKey={cat} stroke={CAT_COLORS[cat]} fill={CAT_COLORS[cat]} fillOpacity={0.15} strokeWidth={2}/>
+                    ))}
+                    <Legend wrapperStyle={{fontSize:11}}/>
+                    <Tooltip/>
+                  </RadarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            <div style={{ background:"rgba(255,255,255,0.02)", border:"1px solid #1e1e3a", borderRadius:20, padding:28 }}>
+              <h3 style={{ margin:"0 0 20px", color:"#fff", fontFamily:"'DM Serif Display',serif", fontWeight:400, fontSize:18 }}>Side-by-Side Category Comparison</h3>
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={salesData.filter(d=>d.total)} margin={{top:5,right:20,left:10,bottom:5}}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1e1e3a"/>
+                  <XAxis dataKey="month" tick={{fill:"#666",fontSize:11}} axisLine={false} tickLine={false}/>
+                  <YAxis tickFormatter={v=>`$${v/1000}K`} tick={{fill:"#666",fontSize:11}} axisLine={false} tickLine={false}/>
+                  <Tooltip content={<CustomTooltip/>}/>
+                  <Legend wrapperStyle={{paddingTop:16,fontSize:12}}/>
+                  {Object.entries(CAT_COLORS).map(([k,v])=>(
+                    <Bar key={k} dataKey={k} fill={v} radius={[3,3,0,0]} stackId="a" name={k}/>
+                  ))}
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        )}
+
+        {/* ── SECTION 3: REGIONAL ── */}
+        {activeSection === 3 && (
+          <div style={{ animation:"fadeUp 0.4s both" }}>
+            <SectionTitle n="3" title="Regional Performance" subtitle="Geographic breakdown of quarterly revenue and year-over-year growth across 5 regions" />
+
+            <div style={{ background:"rgba(255,255,255,0.02)", border:"1px solid #1e1e3a", borderRadius:20, padding:28, marginBottom:24 }}>
+              <h3 style={{ margin:"0 0 20px", color:"#fff", fontFamily:"'DM Serif Display',serif", fontWeight:400, fontSize:18 }}>Quarterly Revenue by Region</h3>
+              <ResponsiveContainer width="100%" height={320}>
+                <BarChart data={regionData} margin={{top:5,right:20,left:10,bottom:5}}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1e1e3a"/>
+                  <XAxis dataKey="region" tick={{fill:"#888",fontSize:12}} axisLine={false} tickLine={false}/>
+                  <YAxis tickFormatter={v=>`$${v/1000}K`} tick={{fill:"#666",fontSize:11}} axisLine={false} tickLine={false}/>
+                  <Tooltip content={<CustomTooltip/>}/>
+                  <Legend wrapperStyle={{paddingTop:16,fontSize:12}}/>
+                  {[["q1","#93C5FD","Q1"],["q2","#6EE7B7","Q2"],["q3","#FCD34D","Q3"],["q4","#F9A8D4","Q4"]].map(([k,c,n])=>(
+                    <Bar key={k} dataKey={k} fill={c} radius={[4,4,0,0]} name={n}/>
+                  ))}
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:12 }}>
+              {regionData.map((r,i)=>{
+                const colors = ["#93C5FD","#6EE7B7","#FCD34D","#F9A8D4","#C4B5FD"];
+                const totalR = r.q1+r.q2+r.q3+r.q4;
+                return (
+                  <div key={i} style={{
+                    background:"rgba(255,255,255,0.02)", border:`1px solid ${colors[i]}33`,
+                    borderRadius:16, padding:20, textAlign:"center"
+                  }}>
+                    <div style={{ fontSize:11, color:"#666", letterSpacing:2, textTransform:"uppercase", marginBottom:8 }}>{r.region}</div>
+                    <div style={{ fontSize:24, fontFamily:"'DM Serif Display',serif", color:"#fff", marginBottom:4 }}>{fmt(totalR)}</div>
+                    <div style={{ fontSize:13, color:colors[i], fontWeight:700 }}>↑ {r.yoy}% YoY</div>
+                    <div style={{ marginTop:12, background:"#111", borderRadius:6, height:4, overflow:"hidden" }}>
+                      <div style={{ width:`${(totalR/2552000)*100}%`, height:"100%", background:colors[i], borderRadius:6 }}/>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ── SECTION 4: CUSTOMER SEGMENTS ── */}
+        {activeSection === 4 && (
+          <div style={{ animation:"fadeUp 0.4s both" }}>
+            <SectionTitle n="4" title="Customer Segmentation" subtitle="Behavioral clustering analysis across Premium, Regular, Occasional, and New customers" />
+
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:16, marginBottom:24 }}>
+              {customerData.map((c,i)=>{
+                const cols = ["#FCD34D","#6EE7B7","#93C5FD","#F9A8D4"];
+                return (
+                  <div key={i} style={{ background:"rgba(255,255,255,0.02)", border:`1px solid ${cols[i]}22`, borderRadius:16, padding:20 }}>
+                    <div style={{ fontSize:11, color:cols[i], letterSpacing:2, textTransform:"uppercase", fontWeight:700, marginBottom:12 }}>{c.segment}</div>
+                    <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+                      {[["Customers",c.count.toLocaleString()],["Avg Order",`$${c.avgOrder}`],["Churn Rate",`${c.churn}%`],["CLV",`$${c.clv}`]].map(([k,v])=>(
+                        <div key={k} style={{ display:"flex", justifyContent:"space-between", borderBottom:"1px solid #1a1a2a", paddingBottom:6 }}>
+                          <span style={{ color:"#666", fontSize:12 }}>{k}</span>
+                          <span style={{ color:"#fff", fontWeight:700, fontSize:13 }}>{v}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:20 }}>
+              <div style={{ background:"rgba(255,255,255,0.02)", border:"1px solid #1e1e3a", borderRadius:20, padding:28 }}>
+                <h3 style={{ margin:"0 0 20px", color:"#fff", fontFamily:"'DM Serif Display',serif", fontWeight:400, fontSize:18 }}>Customer Lifetime Value</h3>
+                <ResponsiveContainer width="100%" height={240}>
+                  <BarChart data={customerData} layout="vertical" margin={{top:5,right:20,left:40,bottom:5}}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#1e1e3a" horizontal={false}/>
+                    <XAxis type="number" tickFormatter={v=>`$${v}`} tick={{fill:"#666",fontSize:11}} axisLine={false} tickLine={false}/>
+                    <YAxis type="category" dataKey="segment" tick={{fill:"#888",fontSize:12}} axisLine={false} tickLine={false}/>
+                    <Tooltip formatter={v=>[`$${v}`,"CLV"]}/>
+                    <Bar dataKey="clv" radius={[0,8,8,0]} name="Customer LTV">
+                      {["#FCD34D","#6EE7B7","#93C5FD","#F9A8D4"].map((c,i)=><Cell key={i} fill={c}/>)}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+              <div style={{ background:"rgba(255,255,255,0.02)", border:"1px solid #1e1e3a", borderRadius:20, padding:28 }}>
+                <h3 style={{ margin:"0 0 20px", color:"#fff", fontFamily:"'DM Serif Display',serif", fontWeight:400, fontSize:18 }}>Spend vs Satisfaction (Scatter)</h3>
+                <ResponsiveContainer width="100%" height={240}>
+                  <ScatterChart margin={{top:5,right:20,left:5,bottom:5}}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#1e1e3a"/>
+                    <XAxis dataKey="spend" name="Avg Spend" unit="$" tick={{fill:"#666",fontSize:11}} axisLine={false} tickLine={false}/>
+                    <YAxis dataKey="satisfaction" name="Satisfaction" unit="%" tick={{fill:"#666",fontSize:11}} axisLine={false} tickLine={false}/>
+                    <Tooltip cursor={{strokeDasharray:"3 3"}} formatter={(v,n)=>[n==="spend"?`$${v}`:`${v}%`,n]}/>
+                    <Scatter data={scatterPoints} name="Customers">
+                      {scatterPoints.map((p,i)=>(
+                        <Cell key={i} fill={CAT_COLORS[p.category]||"#6EE7B7"} opacity={0.75}/>
+                      ))}
+                    </Scatter>
+                  </ScatterChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── SECTION 5: FORECAST & INSIGHTS ── */}
+        {activeSection === 5 && (
+          <div style={{ animation:"fadeUp 0.4s both" }}>
+            <SectionTitle n="5" title="Forecast & Key Insights" subtitle="Predictive outlook for Q1 2025 and data-driven recommendations" />
+
+            <div style={{ background:"rgba(255,255,255,0.02)", border:"1px solid #1e1e3a", borderRadius:20, padding:28, marginBottom:24 }}>
+              <h3 style={{ margin:"0 0 20px", color:"#fff", fontFamily:"'DM Serif Display',serif", fontWeight:400, fontSize:18 }}>Revenue Forecast — Jan–Mar 2025</h3>
+              <ResponsiveContainer width="100%" height={280}>
+                <LineChart data={salesData} margin={{top:5,right:20,left:10,bottom:5}}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1e1e3a"/>
+                  <XAxis dataKey="month" tick={{fill:"#666",fontSize:11}} axisLine={false} tickLine={false}/>
+                  <YAxis tickFormatter={v=>`$${v/1000}K`} tick={{fill:"#666",fontSize:11}} axisLine={false} tickLine={false}/>
+                  <Tooltip content={<CustomTooltip/>}/>
+                  <Legend wrapperStyle={{paddingTop:16,fontSize:12}}/>
+                  <Line type="monotone" dataKey="total" stroke="#6EE7B7" strokeWidth={2.5} dot={{r:4}} name="Actual" connectNulls={false}/>
+                  <Line type="monotone" dataKey="forecast" stroke="#FCD34D" strokeWidth={2.5} strokeDasharray="7 4" dot={{r:5,fill:"#FCD34D"}} name="Forecast" connectNulls={false}/>
+                </LineChart>
+              </ResponsiveContainer>
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:16, marginTop:20 }}>
+                {[["Jan 2025","$598K","↑ 10.3%"],["Feb 2025","$572K","↑ 9.8%"],["Mar 2025","$665K","↑ 9.4%"]].map(([m,v,g])=>(
+                  <div key={m} style={{ background:"rgba(252,211,77,0.05)", border:"1px solid #FCD34D33", borderRadius:12, padding:16, textAlign:"center" }}>
+                    <div style={{ color:"#888", fontSize:11, marginBottom:4 }}>{m}</div>
+                    <div style={{ color:"#fff", fontWeight:800, fontSize:22, fontFamily:"'DM Serif Display',serif" }}>{v}</div>
+                    <div style={{ color:"#FCD34D", fontSize:12, fontWeight:700 }}>{g} vs prior yr</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Insights */}
+            <h3 style={{ color:"#fff", fontFamily:"'DM Serif Display',serif", fontWeight:400, fontSize:20, marginBottom:16 }}>Key Analytical Findings</h3>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
+              {[
+                { icon:"📈", tag:"Growth Leader", color:"#6EE7B7",
+                  title:"Home Décor is the Fastest-Growing Category",
+                  body:"With 24.6% YoY growth, Home Décor outpaced all categories. The surge aligns with post-pandemic nesting trends and a successful Q4 promotional campaign." },
+                { icon:"🛒", tag:"Volume King", color:"#FCD34D",
+                  title:"Grocery Drives Volume, Electronics Drives Value",
+                  body:"Grocery contributes 35% of total units but only 28% of revenue. Electronics, at 22% of revenue, yields the highest per-transaction value at $187 average order." },
+                { icon:"🌍", tag:"Regional Insight", color:"#93C5FD",
+                  title:"East Region Shows Highest Acceleration",
+                  body:"East grew at 22.1% YoY — the fastest of all regions — suggesting untapped market potential and room for targeted investment in Q1 2025." },
+                { icon:"⚠️", tag:"Risk Flag", color:"#F87171",
+                  title:"Sports Category in Decline",
+                  body:"Sports is the only category with negative growth (−3.1%). Post-summer seasonality and inventory over-stocking in Q4 are key contributors. Recommend SKU rationalization." },
+                { icon:"👑", tag:"Customer Value", color:"#C4B5FD",
+                  title:"Premium Segment CLV is 18× New Customers",
+                  body:"Premium customers ($3,820 CLV) warrant focused retention programs. Loyalty incentives and early-access deals could reduce the 4.2% churn to sub-2%." },
+                { icon:"🔮", tag:"Forecast", color:"#FCD34D",
+                  title:"Q1 2025 Projected at $1.83M — +9.8% vs Q1 2024",
+                  body:"Linear regression on 12-month trend with seasonal dampening predicts a strong Q1. February may dip slightly vs January due to post-holiday normalization." },
+              ].map((ins,i)=>(
+                <div key={i} className="insight-card" style={{
+                  background:"rgba(255,255,255,0.02)", border:`1px solid ${ins.color}22`,
+                  borderRadius:16, padding:20, transition:"all .2s", cursor:"default"
+                }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10 }}>
+                    <span style={{ fontSize:20 }}>{ins.icon}</span>
+                    <span style={{ fontSize:10, background:`${ins.color}22`, color:ins.color, padding:"2px 10px", borderRadius:100, fontWeight:700, letterSpacing:1, textTransform:"uppercase" }}>{ins.tag}</span>
+                  </div>
+                  <div style={{ fontSize:14, fontWeight:700, color:"#fff", marginBottom:6, lineHeight:1.4 }}>{ins.title}</div>
+                  <div style={{ fontSize:12, color:"#888", lineHeight:1.7 }}>{ins.body}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Footer nav */}
+        <div style={{ display:"flex", justifyContent:"space-between", marginTop:40, paddingTop:24, borderTop:"1px solid #1e1e3a" }}>
+          <button onClick={()=>setActiveSection(s=>Math.max(0,s-1))} disabled={activeSection===0} style={{
+            background:"transparent", border:"1px solid #333", color: activeSection===0?"#444":"#888",
+            borderRadius:10, padding:"10px 20px", cursor: activeSection===0?"default":"pointer",
+            fontFamily:"'DM Sans',sans-serif", fontSize:13
+          }}>← Previous</button>
+          <span style={{ color:"#555", fontSize:12, alignSelf:"center" }}>{activeSection+1} / {sections.length}</span>
+          <button onClick={()=>setActiveSection(s=>Math.min(sections.length-1,s+1))} disabled={activeSection===sections.length-1} style={{
+            background: activeSection===sections.length-1 ? "transparent" : "linear-gradient(135deg,#6EE7B7,#3B82F6)",
+            border:"none", color: activeSection===sections.length-1 ? "#444" : "#000",
+            borderRadius:10, padding:"10px 20px", cursor: activeSection===sections.length-1?"default":"pointer",
+            fontFamily:"'DM Sans',sans-serif", fontSize:13, fontWeight:700
+          }}>Next →</button>
+        </div>
+      </div>
+    </div>
+  );
+}
